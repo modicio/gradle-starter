@@ -1,13 +1,13 @@
 package main;
 
-import modicio.codi.Fragment;
-import modicio.codi.api.*;
+import modicio.core.ModelElement;
+import modicio.core.TimeIdentity;
+import modicio.core.api.*;
 import modicio.nativelang.defaults.api.SimpleDefinitionVerifierJ;
 import modicio.nativelang.defaults.api.SimpleMapRegistryJ;
 import modicio.nativelang.defaults.api.SimpleModelVerifierJ;
 import modicio.verification.api.DefinitionVerifierJ;
 import modicio.verification.api.ModelVerifierJ;
-
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +31,19 @@ public class MainClass {
         typeFactoryJ.setRegistryJ(registryJ);
         instanceFactoryJ.setRegistryJ(registryJ);
 
+        try {
+
+            CompletableFuture<TypeHandleJ> root = typeFactoryJ.newTypeJ(
+                    ModelElement.ROOT_NAME(),
+                    ModelElement.REFERENCE_IDENTITY(),
+                    true,
+                    Optional.of(TimeIdentity.create()));
+            CompletableFuture<Object> typeFuture = registryJ.setType(root.get());
+            typeFuture.get();
+
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
         /*
          * EXAMPLE USE CASE
          */
@@ -38,13 +51,12 @@ public class MainClass {
         try {
 
             String myType = "Todo";
-            TypeHandleJ  todoType = typeFactoryJ.newTypeJ(myType, Fragment.REFERENCE_IDENTITY(), false);
+            CompletableFuture<TypeHandleJ> todoType = typeFactoryJ.newTypeJ(myType, ModelElement.REFERENCE_IDENTITY(), false);
+            registryJ.setType(todoType.get()).get();
 
-            CompletableFuture<Object> typeFuture = registryJ.setType(todoType);
             CompletableFuture<DeepInstanceJ> instanceFuture = instanceFactoryJ.newInstanceJ("Todo");
 
-            Optional<DeepInstanceJ> savedInstanceOption = typeFuture.thenCompose(res -> instanceFuture).thenCompose(instance ->
-                    registryJ.getJ(instance.instanceId())).get();
+            Optional<DeepInstanceJ> savedInstanceOption = registryJ.getJ(instanceFuture.get().instanceId()).get();
 
             if(savedInstanceOption.isPresent()) {
                 DeepInstanceJ myTodo = savedInstanceOption.get();
