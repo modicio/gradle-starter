@@ -1,13 +1,14 @@
 package main;
 
-import modicio.core.ModelElement;
-import modicio.core.TimeIdentity;
-import modicio.core.api.*;
-import modicio.nativelang.defaults.api.SimpleDefinitionVerifierJ;
-import modicio.nativelang.defaults.api.SimpleMapRegistryJ;
-import modicio.nativelang.defaults.api.SimpleModelVerifierJ;
-import modicio.verification.api.DefinitionVerifierJ;
-import modicio.verification.api.ModelVerifierJ;
+import modicio.api.J;
+import modicio.core.*;
+import modicio.nativelang.defaults.SimpleDefinitionVerifier;
+import modicio.nativelang.defaults.SimpleMapRegistry;
+import modicio.nativelang.defaults.SimpleModelVerifier;
+import modicio.verification.DefinitionVerifier;
+import modicio.verification.ModelVerifier;
+import scala.Option;
+
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -20,30 +21,31 @@ public class MainClass {
          * SETUP - ONLY ONCE PER APPLICATION CONTEXT
          */
 
-        DefinitionVerifierJ definitionVerifierJ = new SimpleDefinitionVerifierJ();
-        ModelVerifierJ modelVerifierJ = new SimpleModelVerifierJ();
+        DefinitionVerifier definitionVerifier = new SimpleDefinitionVerifier();
+        ModelVerifier modelVerifier = new SimpleModelVerifier();
 
-        TypeFactoryJ typeFactoryJ = new TypeFactoryJ(definitionVerifierJ, modelVerifierJ);
-        InstanceFactoryJ instanceFactoryJ = new InstanceFactoryJ(definitionVerifierJ, modelVerifierJ);
+        TypeFactory typeFactory = new TypeFactory(definitionVerifier, modelVerifier);
+        InstanceFactory instanceFactory = new InstanceFactory(definitionVerifier, modelVerifier);
 
-        RegistryJ registryJ = new SimpleMapRegistryJ(typeFactoryJ, instanceFactoryJ);
+        Registry registry = new SimpleMapRegistry(typeFactory, instanceFactory);
 
-        typeFactoryJ.setRegistryJ(registryJ);
-        instanceFactoryJ.setRegistryJ(registryJ);
+        typeFactory.setRegistry(registry);
+        instanceFactory.setRegistry(registry);
 
         try {
 
-            CompletableFuture<TypeHandleJ> root = typeFactoryJ.newTypeJ(
+            CompletableFuture<TypeHandle> root = J.future(typeFactory.newType(
                     ModelElement.ROOT_NAME(),
                     ModelElement.REFERENCE_IDENTITY(),
                     true,
-                    Optional.of(TimeIdentity.create()));
-            CompletableFuture<Object> typeFuture = registryJ.setType(root.get());
+                    J.convert(Optional.of(TimeIdentity.create()))));
+            CompletableFuture<Object> typeFuture = J.future(registry.setType(root.get(), false));
             typeFuture.get();
 
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
+
         /*
          * EXAMPLE USE CASE
          */
@@ -51,16 +53,16 @@ public class MainClass {
         try {
 
             String myType = "Todo";
-            CompletableFuture<TypeHandleJ> todoType = typeFactoryJ.newTypeJ(myType, ModelElement.REFERENCE_IDENTITY(), false);
-            registryJ.setType(todoType.get()).get();
+            CompletableFuture<TypeHandle> todoType = J.future(typeFactory.newType(myType, ModelElement.REFERENCE_IDENTITY(), false, Option.empty()));
+            J.future(registry.setType(todoType.get(), false)).get();
 
-            CompletableFuture<DeepInstanceJ> instanceFuture = instanceFactoryJ.newInstanceJ("Todo");
+            CompletableFuture<DeepInstance> instanceFuture = J.future(instanceFactory.newInstance("Todo"));
 
-            Optional<DeepInstanceJ> savedInstanceOption = registryJ.getJ(instanceFuture.get().instanceId()).get();
+            Optional<DeepInstance> savedInstanceOption = J.convert(J.future(registry.get(instanceFuture.get().instanceId())).get());
 
             if(savedInstanceOption.isPresent()) {
-                DeepInstanceJ myTodo = savedInstanceOption.get();
-                System.out.println("Hooray!! id: " + myTodo.getInstanceIdJ());
+                DeepInstance myTodo = savedInstanceOption.get();
+                System.out.println("Hooray!! id: " + myTodo.getInstanceId());
             }else{
                 System.out.println("This did not work...");
             }
